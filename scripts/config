@@ -8,7 +8,7 @@ HOTWATER_NODE=2
 RECEIVER_ID_HEATING="XXXXXXX-XXXX-XXXX-XXXXXX-XXXXXXXXX"  #node[0].id for my hub. Seems to be different for other users. Check the node name - should be "Your Receiver"
 RECEIVER_ID_WATER="XXXXXXX-XXXX-XXXX-XXXXXX-XXXXXXXXX"    #Another "Your Receiver" node
 
-OPENHAB_SERVER="http://192.168.168.95:8080/rest/items"
+OPENHAB_SERVER="http://192.168.x.x:8080/rest/items"
 HIVE_URL="https://api-prod.bgchprod.info:443/omnia"
 WEATHER_URL="https://weather-prod.bgchprod.info/weather?postcode=XXXXX"
 
