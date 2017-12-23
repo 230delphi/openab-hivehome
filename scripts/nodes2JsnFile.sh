@@ -11,7 +11,8 @@ then
 fi
 
 #Login...
-session=`curl -v -k --cookie-jar cookie.jar -g -H "Content-Type: application/vnd.alertme.zoo-6.1+json" -H "Accept: application/vnd.alertme.zoo-6.2+json" -H "Content-Type: 'application/*+json'" -H "X-AlertMe-Client: Hive Web Dashboard" -d '{"sessions":[{"username":"suhail@smar.co.uk", "password":"safiyyah1","caller":"openhab"}]}' $HIVE_URL/auth/sessions`
+#TODO message to ensure he changes password
+session=`curl -v -k --cookie-jar cookie.jar -g -H "Content-Type: application/vnd.alertme.zoo-6.1+json" -H "Accept: application/vnd.alertme.zoo-6.2+json" -H "Content-Type: 'application/*+json'" -H "X-AlertMe-Client: Hive Web Dashboard" -d '{"sessions":[{"username":"user", "password":"passs","caller":"openhab"}]}' $HIVE_URL/auth/sessions`
 
 echo Session: `echo $session | jq .`
 
