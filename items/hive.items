@@ -1,0 +1,22 @@
+Group 	GDevices
+Group 	gHeating (GDevices)
+
+Number 	upstairsTargetTemp		"Upstairs Target Temperature" 		(gHeating)
+Number 	upstairsTemp 			"Upstairs current temperature" 		(gHeating)
+Switch	upstairsStatus 			"Upstairs Status" 					(gHeating)
+Number 	upstairsMode 			"Upstairs Mode" 					(gHeating)
+
+// set openhab variables.
+Number 	downstairsTargetTemp 	"Downstairs Target Temperature" 	(gHeating)
+Number 	downstairsTemp 			"Downstairs current Temperature" 	(gHeating)
+Switch 	downstairsStatus 		"Downstairs Status" 				(gHeating)
+Number 	downstairsMode 			"Downstairs Mode" 					(gHeating)
+
+// hot water - typically only one zone per system
+Switch 	hotWaterStatus 			"Hot Water Status" 					(gHeating)
+Number 	hotWaterMode 			"Hot Water Mode" 					(gHeating)
+
+//Control running status
+String 	hiveHomeUpdateRunning		"Hive Update running ... [%s]" 				<"hiveHome_new">		(gHeating)
+Switch 	hiveHomeManualRun			"Start manually"             				<"hiveHome_reload2">	(gHeating)
+DateTime hiveHomeLastUpdate     	"Last run [%1$td.%1$tm.%1$tY, %1$tH:%1$tM]" <"hiveHome_problem4">	(gHeating)
