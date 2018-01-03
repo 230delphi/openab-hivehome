@@ -1,45 +1,53 @@
 # openab-hivehome
-integration for openhab with hive
+Integration of Hive Heating controls with openHAB
 
 ## Original readme: https://community.openhab.org/t/hive-thermostat-british-gas-tutorial/36371
 ## credit user smar: https://community.openhab.org/u/smar/summary
 
-A number of people have asked me via PM for how I connect to the British Gas Hive thermostat to openHAB. As such, here is a very brief set of notes and the scripts that I use, to help get any other Hive users started.
-
-Note that these scripts are based on information from http://www.smartofthehome.com/2016/05/hive-rest-api-v613, where the author describes the key steps necessary to connect to the British Gas API for hive. This could of course change at anytime as these are all unofficial!
-
-Also don't forget to change the extension on the attached file to zip, and then unzip the file.
 Overview
+--------
+The Hive Heating controls system, originally introduced by British Gas is now available online to all, and in Ireland through local providers. This set of scripts and config is intended to get some basic integration into openHAB. It may some day be re-written in java, for now the work started by smar is sufficient for my purposes.
 
-Using your Hive userid/password, you can log in to the British Gas servers and get data from your Hive thermostat in JSON format. This data will be quite large, and include all sorts of things that you probably arent interested in.
+Note that these scripts are based on information from http://www.smartofthehome.com/2016/05/hive-rest-api-v613, where the author describes the key steps necessary to connect to the Hive API. This could of course change at anytime as these are all unofficial!
 
-One of the important things to note in this JSON data is that there are a number of nodes. Each node seems to be for various internal devices that your Hive is seeing. In my case, I am seeing 7 nodes in my data. You will have to figure out which of the nodes is for your heating (and which is for hot water, if you control your water from your hive as well). As an aside, there is a node for the water leaking sensor if you have this. However, my scripts do not currently support this.
+Overview
+--------
+Using your Hive userid/password, you can log in to the Hive servers and get data from your Hive thermostat in JSON format. This data will be quite large, and include all sorts of things that you probably aren't interested in.
+
+One of the important things to note in this JSON data is that there are a number of nodes. Each node represents internal devices in your Hive echosystem: this includes the hub, any thermostats or receivers etc. The first task is to identify the nodes of interest - currently only those that control heating or water. In the future, these will be updated to include lighting and should be extendible for any other interest.
 
 Basic How-To
 ------------
-	1. Modify the file config with your Hive login data, your openHAB server data and if you want to use mqtt, then your mqtt server data. If you don't know your hive node numbers and IDs, then leave these as is for now. If you do know them, then put them in here in their respective places and jump to step 8. If you have a combi-boiler, you will probably not have a node for your Water, so the node/receiver IDs for water can be ignored.
+Note: these steps assume you have a working Hive and OpenHAB system and are reasonably familar with configuration of both.
+	
+	1. Copy the contents of the scripts directory to your intended destination. The core scripts can run from any machine - openHAB or elsewhere. The default bundle loosly assumes the common openHAB structure, but of course may be changed as desired.  The default bundle also contains optional, sample openhab config for a 2 heat and 1 water zone system. The bundle includes: 
+		./scripts						- contains the main logic to retrieve and parse data
+			hive.config.sample 	- the sample config file.
+			hiveToOpenHAB.sh		- the main script to optain data and update openHAB.
+			nodes2JsnFile.sh		- a helper script to identify your nodes of interest.
+			<other>.sh				- contained as reference, still very much under development
+		./items
+			hive.items				- items required for a sample 2 heat and 1 water zone system
+		./rules
+			hive.rules				- schedule and enable manual executions of data script.
+		./sitemaps
+			hive.sitemap				- display all data and enable manual execution.
+	 
+	2. Copy the sample config file to hive.config, and populate the fields with your known data - hive username/password and openhab configuration details. If you only have one zone, or no water nodes those fields can be ignored or removed.
+	 
+	3. Make sure all the files with .sh extension are executable (chmod +x *.sh)
+	4. Scripts require jq. Install it on your system with the relevant command. eg: sudo apt-get install jq
 
-	2. Make sure all the files with .sh extension are executable (chmod +x *.sh)
+	5. If you don't know your node Ids, run the script with the -getIDS option: "./hiveToOpenHAB.sh -getIDs". If your login details have been correctly entered in the config file, this will get your data and save to a formatted file called nodes.jsn. This file is then parsed, to output the nodes of interest. 
+	
+    6. Put the node IDs of the relevant devices from the previous step into the config file from step 2.
 
-    3. If you don’t know your node Ids, run the script nodes2JsnFile.sh. If your login details have been correctly entered in the config file, this will get your data and save to a file called nodes.jsn.
+    7. Configure openhab items as needed - either with the included items file or by updating the hive.config. Once in place executing ./hiveToOpenHAB.sh should now retrieve and populate openHAB with the relevant data. 
+    
+    8. verbose and debug configuration options may be useful to help testing your configuration.
+    
+    9. Now that the core functionality is in place, you probably want to schedule the update. this can be done any number of ways. The included rules file enables openhab scheduling and management - by default updating every 15 minutes.
+    
+    10. Other scripts are included, but as of yet untested from the original release: eg MQTT; boosting and set thermostat. These will be refactored over time.
 
-    4. Open the nodes.jsn file. It may be helpful to use something to prettify and format the JSON, so that it is easier to read. If your text editor does not do this, there are online sites available that do this. nodes
-
-    5. Search for the exact text "temperature": including the quotation marks and the colon mark. It should only find one instance of this. The node that this is found in is your heating node. Scroll down slightly and you should see the  value. This is the id you need to enter in the RECEIVER_ID_HEATING parameter of the config file.
-    temperature
-    temperature.PNG779x506 43.3 KB
-
-    6. Before moving on, scroll UP and count the node number that this ID is found in, starting at zero for the first node. In the screenshot below, you can see that my heating temperature reporting node is node 4.
-    temperature 2
-
-    7. If you have a hot water node, repeat the above step for your hot water node but this time searching for "stateHotWaterRelay":
-
-    8. Put the node numbers and IDs from the previous steps into the config file from step 1.
-
-    9. You can now get the data and post directly to openHAB via REST or to MQTT, using the respective scripts. If you post to openHAB, remember to change the item names to match yours in the hiveToOpenHAB.sh script.
-
-    10. I have also included scripts for boosting and for setting the thermostat temperature. I don't use these much so am not sure how reliable they are, but they certainly worked when I first wrote the scripts (some time ago).
-
-Hope this helps those of you looking to integrate Hive with openHAB!
-
-EDIT: Sorry, I forgot to include the nodes2JsnFile.sh in the zip. I've attached it seperately now as with a .css extension to overcome the forum's limitaiton on filetypes that can be uploaded. Please rename/give permissions accordingly.
+I hope others find this useful, and thanks to the original work by smar.
