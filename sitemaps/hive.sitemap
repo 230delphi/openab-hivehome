@@ -1,26 +1,36 @@
-sitemap hive label="Hive menu" {
-        Frame label="Upstairs Heating" {
-			Setpoint item=upstairsTargetTemp label="Upstairs Target Temperature [%.1f °C]" minValue=4.5 maxValue=30 step=0.5
-			Text item=upstairsTemp label="Temperatures [%.1f °C]"
+sitemap hive label="Hive menu" 
+{
+	Frame label="Upstairs Heating" 
+		{
+			Setpoint item=upstairsTargetTemp 	label="Upstairs Target Temperature [%.1f C]" minValue=4.5 maxValue=30 step=0.5
+			Text item=upstairsTemp 				label="Temperatures [%.1f C]"
 			Switch item=upstairsStatus
-			Switch item=upstairsMode mappings=[1="Boost",2="schedule",0="Off"]
+			Switch item=upstairsMode 					mappings=[1="Boost",2="schedule",0="Off"]
 		}
 	Frame label="Downstairs Heating"
 		{
-			Setpoint item=downstairsTargetTemp label="Downstairs Target Temperature [%.1f °C]" minValue=4.5 maxValue=30 step=0.5
-			Text item=downstairsTemp label="Temperatures [%.1f °C]"
-			Switch item=downstairsStatus
-			Switch item=downstairsMode mappings=[1="Boost",2="schedule",0="Off"]
+			Setpoint item=downstairsTargetTemp 	label="Downstairs Target Temperature [%.1f C]" minValue=4.5 maxValue=30 step=0.5
+			Text 	item=downstairsTemp 		label="Temperatures [%.1f C]"
+			Switch 	item=downstairsStatus
+			Switch 	item=downstairsMode 				mappings=[1="Boost",2="schedule",0="Off"]
 		}
 	Frame label="Hot Water"
 		{
-			Switch item=hotWaterStatus
-			Switch  item=hotWaterMode mappings=[1="Boost",2="schedule",0="Off"]
+			Switch 	item=hotWaterStatus
+			Switch	item=hotWaterMode 					mappings=[1="Boost",2="schedule",0="Off"]
         }
+	Frame label="Landing Lights"
+		{
+			Slider	item=landingFrontLight 
+			Switch 	item=landingFrontLightHState 			mappings=[2="schedule",0="Off"]
+			Slider 	item=landingBackLight
+			Switch 	item=landingBackLightHState 			mappings=[2="schedule",0="Off"]
+		}
+
 	Frame label="Control"
 		{
 			Text item=hiveHomeLastUpdate
-			Switch item=hiveHomeManualRun mappings=[ON="Start"]
-			Text item=hiveHomeUpdateRunning label="HiveUpdate [%s]" visibility=[hiveHomeUpdateRunning != "-"]
+			Switch item=hiveHomeManualRun 				mappings=[ON="Start"]
+			Text item=hiveHomeUpdateRunning 	label="HiveUpdate [%s]" visibility=[hiveHomeUpdateRunning != "-"]
 		}
 }

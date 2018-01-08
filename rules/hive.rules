@@ -8,37 +8,32 @@ then
     createTimer(now.plusSeconds(240)) [|
         if (hiveHomeManualRun.state == NULL) hiveHomeManualRun.postUpdate(OFF)
         if (hiveHomeUpdateRunning.state == NULL) hiveHomeUpdateRunning.postUpdate("-")
-        //if (hiveHomeSummary.state == NULL || hiveHomeSummary.state == "")
-        //    hiveHomeSummary.postUpdate("(unknown)")
     ]
 end
 
 rule "hiveHome"
 when
-    Time cron "0 15 * * * ?" or
+    // every 15 minutes, offset to avoid hour clash. 
+    Time cron "0 7-59/15 * * * ?" or
     Item hiveHomeManualRun received command ON
 then
     logInfo(filename, "--> hiveHome executed...")
-    hiveHomeUpdateRunning.postUpdate("Running...")
+    hiveHomeUpdateRunning.postUpdate("started.. " + new DateTimeType())
 
     // update timestamp for last execution
     hiveHomeLastUpdate.postUpdate(new DateTimeType())
 
     // execute the script, you may have to change the path depending on your system
     var String hiveHomeCliOutput = executeCommandLine("/etc/openhab2/scripts/hiveToOpenHAB.sh", 60*1000)
-	// working dir: /var/lib/openhab2
-	// var String hiveHomeCliOutput = executeCommandLine("pwd", 60*1000)
 
-    // for debugging:
-    logInfo(filename, "--> hiveHome output:\n" + hiveHomeCliOutput + "\n\n")
-
-    hiveHomeUpdateRunning.postUpdate("Data...")
+    logDebug(filename, "--> hiveHome output:\n" + hiveHomeCliOutput + "\n\n")
+    hiveHomeUpdateRunning.postUpdate("updated:" + new DateTimeType())
 
     // crude error check based on script output
     if (hiveHomeCliOutput.startsWith("OK")) {
         logInfo(filename, "--> hiveHome finished: success")
     } else {
-		// optional - set values to null so its clear failure.
+	// optional - set values to null so its clear failure.
         upstairsTargetTemp.postUpdate(0)
         upstairsTemp.postUpdate(0)
         upstairsStatus.postUpdate("OFF")
@@ -46,8 +41,8 @@ then
         downstairsTemp.postUpdate(0)
         downstairsStatus.postUpdate("OFF")
         hotWaterStatus.postUpdate("OFF")
-		// set as failed and log error.
-        hiveHomeUpdateRunning.postUpdate("Error executing script")
+	// set as failed and log error.
+        hiveHomeUpdateRunning.postUpdate("Error executing script. " + new DateTimeType())
         logError(filename, "--> hiveHome failed. Output:\n" + hiveHomeCliOutput + "\n\n")
     }
     hiveHomeManualRun.postUpdate(OFF)

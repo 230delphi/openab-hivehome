@@ -24,7 +24,6 @@ Note: these steps assume you have a working Hive and OpenHAB system and are reas
 		./scripts						- contains the main logic to retrieve and parse data
 			hive.config.sample 	- the sample config file.
 			hiveToOpenHAB.sh		- the main script to optain data and update openHAB.
-			nodes2JsnFile.sh		- a helper script to identify your nodes of interest.
 			<other>.sh				- contained as reference, still very much under development
 		./items
 			hive.items				- items required for a sample 2 heat and 1 water zone system
@@ -40,11 +39,11 @@ Note: these steps assume you have a working Hive and OpenHAB system and are reas
 
 	5. If you don't know your node Ids, run the script with the -getIDS option: "./hiveToOpenHAB.sh -getIDs". If your login details have been correctly entered in the config file, this will get your data and save to a formatted file called nodes.jsn. This file is then parsed, to output the nodes of interest. 
 	
-    6. Put the node IDs of the relevant devices from the previous step into the config file from step 2.
+    6. Put the node IDs of the relevant devices from the previous step into the hive.config file from step 2.
 
-    7. Configure openhab items as needed - either with the included items file or by updating the hive.config. Once in place executing ./hiveToOpenHAB.sh should now retrieve and populate openHAB with the relevant data. 
+    7. Configure openhab items as needed - either with the included items file for openhab or by updating the hive.config with your openhab variable names. Once in place executing ./hiveToOpenHAB.sh should now retrieve and populate openHAB with the relevant data.
     
-    8. verbose and debug configuration options may be useful to help testing your configuration.
+    8. verbose and debug configuration options may be useful to help testing your configuration. the simpliest is -v: eg: ./hiveToOpenHAB.sh -v OR ./hiveToOpenHAB.sh -getIDs -v
     
     9. Now that the core functionality is in place, you probably want to schedule the update. this can be done any number of ways. The included rules file enables openhab scheduling and management - by default updating every 15 minutes.
     

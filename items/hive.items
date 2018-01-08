@@ -1,22 +1,32 @@
 Group 	GDevices
+Group 	gFirstFloor
+Group	gGroundFloor
 Group 	gHeating (GDevices)
+Group 	gLanding (gFirstFloor)
 
-Number 	upstairsTargetTemp		"Upstairs Target Temperature" 		(gHeating)
-Number 	upstairsTemp 			"Upstairs current temperature" 		(gHeating)
-Switch	upstairsStatus 			"Upstairs Status" 					(gHeating)
-Number 	upstairsMode 			"Upstairs Mode" 					(gHeating)
+// zone 1 upstairs
+Number 	upstairsTargetTemp		"Upstairs Target Temperature" 		<temperature>	(gHeating,gFirstFloor)
+Number 	upstairsTemp 			"Upstairs current temperature" 		<temperature>	(gHeating,gFirstFloor)
+Switch	upstairsStatus 			"Upstairs Status" 					<switch>		(gHeating,gFirstFloor)
+Number 	upstairsMode 			"Upstairs Mode" 					<status>		(gHeating,gFirstFloor)
 
-// set openhab variables.
-Number 	downstairsTargetTemp 	"Downstairs Target Temperature" 	(gHeating)
-Number 	downstairsTemp 			"Downstairs current Temperature" 	(gHeating)
-Switch 	downstairsStatus 		"Downstairs Status" 				(gHeating)
-Number 	downstairsMode 			"Downstairs Mode" 					(gHeating)
+// zone 2 downstairs
+Number 	downstairsTargetTemp 	"Downstairs Target Temperature" 	<temperature>	(gHeating,gGroundFloor)
+Number 	downstairsTemp 			"Downstairs current Temperature" 	<temperature>	(gHeating,gGroundFloor)
+Switch 	downstairsStatus 		"Downstairs Status" 				<switch>		(gHeating,gGroundFloor)
+Number 	downstairsMode 			"Downstairs Mode" 					<status>		(gHeating,gGroundFloor)
 
-// hot water - typically only one zone per system
-Switch 	hotWaterStatus 			"Hot Water Status" 					(gHeating)
-Number 	hotWaterMode 			"Hot Water Mode" 					(gHeating)
+// zone1 - hot water - typically only one zone per system
+Switch 	hotWaterStatus 			"Hot Water Status" 					<switch>		(gHeating)
+Number 	hotWaterMode 			"Hot Water Mode" 					<status>		(gHeating)
 
-//Control running status
-String 	hiveHomeUpdateRunning		"Hive Update running ... [%s]" 				<"hiveHome_new">		(gHeating)
-Switch 	hiveHomeManualRun			"Start manually"             				<"hiveHome_reload2">	(gHeating)
-DateTime hiveHomeLastUpdate     	"Last run [%1$td.%1$tm.%1$tY, %1$tH:%1$tM]" <"hiveHome_problem4">	(gHeating)
+// bulbs
+Dimmer landingFrontLight 		"Landing Front light" 				<slider>		(GDevices,gLanding)
+Number landingFrontLightHState 	"Landing Front light - hive state" 	<status>		(GDevices,gLanding)
+Dimmer landingBackLight 		"Landing Back light" 				<slider>		(GDevices,gLanding)
+Number landingBackLightHState 	"Landing Back light - hive state" 	<status>		(GDevices,gLanding)
+
+// Control running status of update script.
+String 	hiveHomeUpdateRunning	"Hive Update running ... [%s]" 		<status>		(gHeating)
+Switch 	hiveHomeManualRun		"Start manually"             		<switch>		(gHeating)
+DateTime hiveHomeLastUpdate     "Last run [%1$td.%1$tm.%1$tY, %1$tH:%1$tM]" <time>	(gHeating)

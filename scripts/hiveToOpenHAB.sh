@@ -1,30 +1,28 @@
 #!/bin/bash
 # original work from smar: https://community.openhab.org/t/hive-thermostat-british-gas-tutorial/36371
+# based on api defined in http://www.smartofthehome.com/2016/05/hive-rest-api-v6/
 # script to logon to hivehome, retrieve data and update openhab
 #
-# main configuration is contained within:
+# main configuration is contained within: ./hive.config (or as per $configFilename below)
+# options here should not need to be changed for most cases...
+scriptOpts=$@
 configFilename="./hive.config"
 errorFilename=hive-error.log
-getIDs=
-scriptOpts="$@"
+debugjson=debug.json
 
 #default curl command
 curlCmd="curl --silent -g"
 # connect timeouts used with curl commands to OpenHab
-openHabCurlOPTS="-k --connect-timeout 4 --max-time 10"
+openHabCurlOPTS="-k --connect-timeout 10 --max-time 30"
 # connect timeouts used with curl commands to hive on Internet - allow longer.
-hiveCurlOPTS="--cookie-jar cookie.jar --connect-timeout 10 --max-time 20"
+hiveCurlOPTS="--cookie-jar cookie.jar --connect-timeout 30 --max-time 60"
 
-#log messages if debug enabled
-function debugLog {
-	if [ $debug ]
-	then
-	echo "DEBUG: $1" >> $debugFilename
-		if [ "$verbose" == "true" ]
-		then
-				echo "DEBUG: $1";
-		fi
-	fi	
+# print help
+function printHelp {
+	echo "README.md";
+	echo "-v : verbose debug to console";
+	echo "-getIDs : get NodeIDs of devices of interest";
+	exit 0;
 }
 
 # always log errors
@@ -33,7 +31,39 @@ function errorLog {
 	echo "ERROR: $1";
 }
 
-# pre checks
+#log messages if debug enabled
+function debugLog {
+	if [[ "$debug" == "true" ]]
+	then
+	echo "DEBUG: $1" >> $debugFilename
+		if [[ "$verbose" == "true" ]]
+		then
+				echo "DEBUG: $1";
+		fi
+	fi	
+}
+
+# Test curl output [ cmd_response_code dest_url set_value description ]
+function testCurlResponse {
+		case $1 in
+		    0)
+		    	#success
+		    	debugLog "${4}$3 :: success to: $2";
+		    ;;
+		    6)
+		    	errorLog "${4}$3 :: Curl Error: Invalid URL: $2";
+		    ;;
+		    28)
+		    	errorLog "${4}$3 :: Curl Error: request Timeout. consider adjusting --max-time or --connect-timeout: $2";
+		    ;;
+		    *)
+				# unknown error
+				errorLog "${4}$3 :: Curl Error: unknown: $i : $2";
+		    ;;
+		esac
+}
+
+# pre checks to ensure env is ok
 function doCheck {
 	#check for jq
 	if ! hash jq 2>/dev/null; then
@@ -48,14 +78,6 @@ function doCheck {
 	fi
 }
 
-# print help
-function printHelp {
-	echo "README.md";
-	echo "-v : verbose";
-	echo "-getIDs : get IDs";
-	exit 0;
-}
-
 # initialize script/env and passed parameters
 function doInit {
 	cd $DIR
@@ -64,64 +86,148 @@ function doInit {
 		rm ./cookie.jar
 	fi
 	debugLog "Parsing options: $scriptOpts"
-	for i in "$scriptOpts"
+	for i in $scriptOpts
 	do
 		case $i in
 		    -h)
-		    printHelp;
+		    	printHelp;
 		    ;;
 		    -getIDs)
-		    getIDs=true
+		    	getIDs=true;
 		    ;;
 		    -v)
-		    verbose=true
+		    	verbose=true;
+		    	debug=true;
+		    	debugLog "verbose enabled";
 		    ;;
+		    -testdata)
+		    	usetestdata=true;
+		    	testdata=$debugjson
+		    ;;
+			-testdata=*)
+		    	usetestdata=true;
+			    testdata="${i#*=}"
+			    if [ ! -e $testdata ]; then
+			    	errorLog "$testdata file does not exist";
+			    	exit 1;
+				fi
+			    shift # past argument=value
+			;;
 		    *)
-			# unknown option
+				# unknown option
+				echo unknown option: $i
 		    ;;
 		esac
 	done
 }
 
-# get the data from hive
-function getData {
+# Login to hive and get session id.
+function hiveLogin {
 	#Login...
 	session=`$curlCmd $hiveCurlOPTS -H "Content-Type: application/vnd.alertme.zoo-6.1+json" -H "Accept: application/vnd.alertme.zoo-6.2+json" -H "Content-Type: 'application/*+json'" -H "X-AlertMe-Client: Hive Web Dashboard" -d '{"sessions":[{"username":"'$USERID'", "password":"'$PW'","caller":"openhab"}]}' $HIVE_URL/auth/sessions`
-	
+	testCurlResponse $? $HIVE_URL/auth/sessions "authentication - first attempt"
+	if [ "$session" == "" ]; then
+		debugLog "Create session failed; retry login."
+		session=`$curlCmd $hiveCurlOPTS -H "Content-Type: application/vnd.alertme.zoo-6.1+json" -H "Accept: application/vnd.alertme.zoo-6.2+json" -H "Content-Type: 'application/*+json'" -H "X-AlertMe-Client: Hive Web Dashboard" -d '{"sessions":[{"username":"'$USERID'", "password":"'$PW'","caller":"openhab"}]}' $HIVE_URL/auth/sessions`
+	testCurlResponse $? $HIVE_URL/auth/sessions "authentication - final attempt"
+	fi
+	if [ "$session" == "" ]; then
+		errorLog "Failed to login to Hive to get session.";
+		exit 1;
+	fi
+
 	debugLog "echo Session: `echo $session | jq .`"
-	
 	sessionId=`echo $session | jq .sessions[].sessionId`
 	#remove quotes from beginning/end
 	sessionId="${sessionId%\"}"
 	sessionId="${sessionId#\"}"
 	debugLog "SessionID: $sessionId"
+}
+
+# get the data from hive using session id
+function hiveGetData {
+	if [ "$sessionId" == "" ]; then
+		errorLog "unable to get Data - session not created.";
+		exit 1;
+	fi 
 	
 	infoNodes=`$curlCmd $hiveCurlOPTS -H "Content-Type: application/vnd.alertme.zoo-6.2+json" -H "Accept: application/vnd.alertme.zoo-6.2+json" -H "Content-Type: 'application/*+json'" -H "X-AlertMe-Client: swagger" -H "X-Omnia-Access-Token: $sessionId" $HIVE_URL/nodes`
+	testCurlResponse $? $HIVE_URL/nodes getData
 	
 	debugLog $infoNodes
-	if [ $debug ]
+	if [[ $debug == "true" ]]
 	then
-		debugjson=debug.json
 		echo $infoNodes | jq . > $debugjson
 		debugLog "Logged formatted to $debugjson"
 	fi
+}
 	
-	#Logout
+# logout
+function hiveLogout {
+	if [ "$sessionId" == "" ]; then
+		errorLog "unable to logout - session not created.";
+	exit 1;
+	fi
 	$curlCmd $hiveCurlOPTS -X DELETE -H "Content-Type: application/vnd.alertme.zoo-6.1+json" -H "Accept: application/vnd.alertme.zoo-6.2+json" -H "Content-Type: 'application/*+json'"  -H "X-AlertMe-Client: Hive Web Dashboard" -H 'X-Omnia-Access-Token: '"$sessionId"  "$HIVE_URL/auth/sessions/${sessionId}"
+	testCurlResponse $? "$HIVE_URL/auth/sessions/${sessionId}" logout
+}
+
+# get the data from hive
+function getData {
+	hiveLogin;
+	hiveGetData;
+	hiveLogout;
+}
+function testData {
+	if [ `echo $infoNodes|grep -c "NOT_AUTHORIZED"` -gt "0" ]; then
+		errorLog "Request was not authenticated."
+		exit 1;
+	fi
+	if [ "$infoNodes" == "" ]; then
+		errorLog "Empty data"
+		exit 1;
+	fi
 }
 
 # identify heating and water nodes
 function getNodeIDs {
 	echo $infoNodes |jq . > nodes.jsn
-	echo "Thermostat node(s):"
-	thermos=`echo $infoNodes | jq '.nodes[] | select((.attributes.temperature|length)>=1).id' | sed -e 's/\"//g;'| tr '\n' ' '`
-	echo "RECEIVER_IDs_HEATING=(${thermos})"
+	echo "Found thermostat node(s):"
+	thermos=`echo $infoNodes | jq '.nodes[] | select((.attributes.temperature|length)>=1).id' | tr '\n' ' '`
+	for i in $thermos
+	do
+		# as the names assigned to the thermostats appear to be arbitrary, we need to get the parent (receiver) name.
+		parentid=`echo $infoNodes | jq ".nodes[] | select(.id==$i).parentNodeId"`
+		parentname=`echo $infoNodes | jq ".nodes[] | select(.id==${parentid}).name"`
+		echo "	$i associated with $parentname" 
+	done
+	echo "Recommended Heating config:"
+	echo "	RECEIVER_IDs_HEATING=(`echo ${thermos}| sed -e 's/\"//g;'`)"
 	echo
-	echo "Water node(s):"
-	waters=`echo $infoNodes | jq '.nodes[] | select((.attributes.stateHotWaterRelay|length)>=1).id' | sed -e 's/\"//g'| tr '\n' ' '`
-	echo "RECEIVER_IDs_WATER=(${waters})"
+	echo "Found water node(s):"
+	waters=`echo $infoNodes | jq '.nodes[] | select((.attributes.stateHotWaterRelay|length)>=1).id' | tr '\n' ' '`
+	for i in $waters
+	do
+		parentid=`echo $infoNodes | jq ".nodes[] | select(.id==$i).parentNodeId"`
+		parentname=`echo $infoNodes | jq ".nodes[] | select(.id==${parentid}).name"`
+		echo "	$i associated with $parentname" 
+	done
+	echo "Recommended Water config:"
+	echo "	RECEIVER_IDs_WATER=(`echo ${waters}| sed -e 's/\"//g;'`)"
 	echo 
+	echo "Found bulb node(s):"
+	bulbs=`echo $infoNodes | jq '.nodes[] | select(.nodeType=="http://alertme.com/schema/json/node.class.light.json#").id' | tr '\n' ' '`
+	for i in $bulbs
+	do
+		name=`echo $infoNodes | jq ".nodes[] | select(.id==$i).name"`
+		echo "	$i named $name" 
+	done
+	echo "Recommended Bulb config:"
+	echo "	BULB_IDs=(`echo ${bulbs}| sed -e 's/\"//g;'`)"
+	echo 
+
 	echo "Add the nodes of interest to the configuration file: $configFilename"
+	echo
 	exit 0
 }
 
@@ -132,13 +238,17 @@ function getHeatingNodes {
 		#echo $i/${#RECEIVER_IDs_HEATING[@];
 		#process the output captured for each node listed, and push it into openhab.
 		RECEIVER_ID_HEATING=${RECEIVER_IDs_HEATING[$i]};
-		debugLog "id:$i node: $RECEIVER_ID_HEATING"
+		debugLog "=============================="
+		debugLog "heating id:$i node: $RECEIVER_ID_HEATING"
+		debugLog "=============================="
+#TODO confirm this check
 		if [ "$RECEIVER_ID_HEATING" == "" ]
 		then
-			echo error - no id found
+			errorLog "config error. No ID found in RECEIVER_IDs_HEATING. exiting";
 			exit 1
 		fi
-	
+		
+		#retrieve data
 		tIndoors=`echo $infoNodes | jq --arg RECEIVER_ID_HEATING $RECEIVER_ID_HEATING '.nodes[] | select(.id == $RECEIVER_ID_HEATING).attributes.temperature.reportedValue' -r`
 		target=`echo $infoNodes | jq --arg RECEIVER_ID_HEATING $RECEIVER_ID_HEATING '.nodes[] | select(.id == $RECEIVER_ID_HEATING).attributes.targetHeatTemperature.reportedValue' -r`
 		heatingStatus=`echo $infoNodes | jq --arg RECEIVER_ID_HEATING $RECEIVER_ID_HEATING '.nodes[] | select(.id == $RECEIVER_ID_HEATING).attributes.stateHeatingRelay.reportedValue' -r`
@@ -146,35 +256,43 @@ function getHeatingNodes {
 		heatingASL=`echo $infoNodes | jq --arg RECEIVER_ID_HEATING $RECEIVER_ID_HEATING '.nodes[] | select(.id == $RECEIVER_ID_HEATING).attributes.activeScheduleLock.reportedValue' -r`
 		heatingASL_Target=`echo $infoNodes | jq --arg RECEIVER_ID_HEATING $RECEIVER_ID_HEATING '.nodes[] | select(.id == $RECEIVER_ID_HEATING).attributes.activeScheduleLock.TargetValue' -r`
 
+		#Prepare values
 		if [ "$heatingASL_Target" != null  ]; then heatingASL=$heatingASL_Target; fi
 		if [ "$heatingMode" == "HEAT" ]; then
 			if [ "$heatingASL" == true ]; then heatingMode="MANUAL"; else heatingMode="SCHEDULE"; fi
 		fi
 		printf -v tIndoors "%.1f" "$tIndoors"
 		printf -v target "%.1f" "$target"
-		debugLog "=============================="
-		debugLog "Indoor Temp:  $tIndoors"
-		debugLog "Target Temp: $target"
-		debugLog "Heating Status: $heatingStatus"
-		debugLog "Heating Mode: $heatingMode"
-		debugLog "Updating OpenHab..."
+		heatingModeValue=`echo $heatingMode|sed "s/HEAT/2/;s/SCHEDULE/2/;s/BOOST/1/;s/MANUAL/0/;s/OFF/0/;"`
+
 	
 		#'put' (i.e. update) to openhab server
-		ohURL_Thermostat="$OPENHAB_SERVER/${ohThermostatTarget[$i]}/state"
-		ohURL_Indoors="$OPENHAB_SERVER/${ohThermostatTemp[$i]}/state"
-		ohURL_heatingStatus="$OPENHAB_SERVER/${ohHeatingStatus[$i]}/state"
-		ohURL_heatingMode="$OPENHAB_SERVER/${ohHeatingMode[$i]}/state"
+		putInOH "$OPENHAB_SERVER/${ohThermostatTarget[$i]}/state" 	"$target"			"TargetTemp:"
+		putInOH "$OPENHAB_SERVER/${ohThermostatTemp[$i]}/state" 	"$tIndoors"			"IndoorTemp:"
+		putInOH "$OPENHAB_SERVER/${ohHeatingStatus[$i]}/state"		$heatingStatus		"HeatingStatus:"
+		putInOH "$OPENHAB_SERVER/${ohHeatingMode[$i]}/state"		$heatingModeValue	"HeatingMode:$heatingMode: "
+		
+		#debugLog "Indoor Temp:  $tIndoors"
+		#debugLog "Target Temp: $target"
+		#debugLog "Heating Status: $heatingStatus"
+		#debugLog "Heating Mode: $heatingMode"
+		#debugLog "Updating OpenHab..."
+
+		#ohURL_Thermostat="$OPENHAB_SERVER/${ohThermostatTarget[$i]}/state"
+		#ohURL_Indoors="$OPENHAB_SERVER/${ohThermostatTemp[$i]}/state"
+		#ohURL_heatingStatus="$OPENHAB_SERVER/${ohHeatingStatus[$i]}/state"
+		#ohURL_heatingMode="$OPENHAB_SERVER/${ohHeatingMode[$i]}/state"
 				
-		$curlCmd $openHabCurlOPTS --header "Content-Type: text/plain" --request PUT --data $target $ohURL_Thermostat
-		debugLog "indoor $target $ohURL_Thermostat"
-		$curlCmd $openHabCurlOPTS --header "Content-Type: text/plain" --request PUT --data $tIndoors $ohURL_Indoors
-		debugLog "Heating status: $heatingStatus $ohURL_heatingStatus"
-		$curlCmd $openHabCurlOPTS --header "Content-Type: text/plain" --request PUT --data $heatingStatus $ohURL_heatingStatus
-		heatingModeValue=`echo $heatingMode|sed "s/HEAT/2/;s/SCHEDULE/2/;s/BOOST/1/;s/MANUAL/0/;s/OFF/0/;"`
-		debugLog "heat mode: $heatingModeValue $ohURL_heatingMode"
-		$curlCmd $openHabCurlOPTS --header "Content-Type: text/plain" --request PUT --data $heatingModeValue $ohURL_heatingMode
-		debugLog "OpenHab Update Complete."	
+		#$curlCmd $openHabCurlOPTS --header "Content-Type: text/plain" --request PUT --data $target $ohURL_Thermostat
+		#testCurlResponse $? $ohURL_Thermostat $target
+		#$curlCmd $openHabCurlOPTS --header "Content-Type: text/plain" --request PUT --data $tIndoors $ohURL_Indoors
+		#testCurlResponse $? $ohURL_Indoors $tIndoors
+		#$curlCmd $openHabCurlOPTS --header "Content-Type: text/plain" --request PUT --data $heatingStatus $ohURL_heatingStatus
+		#testCurlResponse $? $ohURL_heatingStatus $heatingStatus
+		#$curlCmd $openHabCurlOPTS --header "Content-Type: text/plain" --request PUT --data $heatingModeValue $ohURL_heatingMode
+		#testCurlResponse $? $ohURL_heatingMode $heatingModeValue
 	done
+	debugLog "OpenHab Heating Update Complete."	
 }
 
 # get the water Node data
@@ -184,36 +302,103 @@ function getWaterNodes {
 		#echo $i/${#RECEIVER_IDs_WATER[@];
 		#process the output captured for each node listed, and push it into openhab.
 		RECEIVER_ID_WATER=${RECEIVER_IDs_WATER[$i]};
-		debugLog "id:$i node: $RECEIVER_ID_WATER"
+		debugLog "=============================="
+		debugLog "water id:$i node: $RECEIVER_ID_WATER"
+		debugLog "=============================="
+#TODO confirm this check
 		if [ "$RECEIVER_ID_WATER" == "" ]
 		then
-			echo error - no id found
+			errorLog "config error. No ID found in RECEIVER_IDs_WATER. exiting";
 			exit
 		fi
-
+		
+		#retrieve data
 		hotWaterStatus=`echo $infoNodes | jq --arg RECEIVER_ID_WATER $RECEIVER_ID_WATER '.nodes[] | select(.id == $RECEIVER_ID_WATER).attributes.stateHotWaterRelay.reportedValue' -r`
 		hotWaterASL=`echo $infoNodes | jq --arg RECEIVER_ID_WATER $RECEIVER_ID_WATER '.nodes[] | select(.id == $RECEIVER_ID_WATER).attributes.activeScheduleLock.reportedValue' -r`
 		hotWaterASL_Target=`echo $infoNodes | jq --arg RECEIVER_ID_WATER $RECEIVER_ID_WATER '.nodes[] | select(.id == $RECEIVER_ID_WATER).attributes.activeScheduleLock.targetValue' -r`
 		hotWaterMode=`echo $infoNodes | jq --arg RECEIVER_ID_WATER $RECEIVER_ID_WATER '.nodes[] | select(.id == $RECEIVER_ID_WATER).attributes.activeHeatCoolMode.reportedValue' -r`
+
+		#prepare values
 		if [ "$hotWaterASL_Target" != null  ]; then hotWaterASL=$hotWaterASL_Target; fi
 		if [ "$hotwaterMode" == "HEAT" ]; then
 			if [ "$hotWaterASL" == true ]; then hotwaterMode="MANUAL"; else hotwaterMode="SCHEDULE"; fi
 		fi
-		debugLog "=============================="
-		debugLog "Hot Water Status: $hotWaterStatus"
-		debugLog "Hot Water Mode: $hotWaterMode"
-		
-		ohURL_hotWaterStatus="$OPENHAB_SERVER/${ohHotWaterStatus[$i]}/state"
-		ohURL_hotwaterMode="$OPENHAB_SERVER/${ohHotwaterMode[$i]}/state"
-		
-		
-		debugLog "water status: $hotWaterStatus $ohURL_hotWaterStatus"
-		$curlCmd $openHabCurlOPTS --header "Content-Type: text/plain" --request PUT --data $hotWaterStatus $ohURL_hotWaterStatus
 		hotWaterModeValue=`echo $hotWaterMode|sed "s/HEAT/2/;s/SCHEDULE/2/;s/BOOST/1/;s/OFF/0/;"`
-		debugLog "water mode $hotWaterModeValue $ohURL_hotwaterMode"
-		curl $openHabCurlOPTS --header "Content-Type: text/plain" --request PUT --data $hotWaterModeValue $ohURL_hotwaterMode
+
+		#'put' (i.e. update) to openhab server
+		putInOH $OPENHAB_SERVER/${ohHotWaterStatus[$i]}/state "$hotWaterStatus"
+		putInOH "$OPENHAB_SERVER/${ohHotwaterMode[$i]}/state" $hotWaterModeValue
+		
+		#debugLog "Hot Water Status: $hotWaterStatus"
+		#debugLog "Hot Water Mode: $hotWaterMode"
+		#ohURL_hotWaterStatus="$OPENHAB_SERVER/${ohHotWaterStatus[$i]}/state"
+		#ohURL_hotwaterMode="$OPENHAB_SERVER/${ohHotwaterMode[$i]}/state"
+		
+		#$curlCmd $openHabCurlOPTS --header "Content-Type: text/plain" --request PUT --data $hotWaterStatus $ohURL_hotWaterStatus
+		#testCurlResponse $? $ohURL_hotWaterStatus $hotWaterStatus
+		#$curlCmd $openHabCurlOPTS --header "Content-Type: text/plain" --request PUT --data $hotWaterModeValue $ohURL_hotwaterMode
+		#testCurlResponse $? $ohURL_hotwaterMode $hotWaterModeValue
 	done
+	debugLog "OpenHab Water Update Complete."	
 }
+
+# put the data in OpenHab
+function putInOH {
+	$curlCmd $openHabCurlOPTS --header "Content-Type: text/plain" --request PUT --data $2 $1
+# deal with value does not exist.
+	testCurlResponse $? $1 $2 $3
+}
+
+# get the Bulb Node data
+function getBulbNodes {
+	if [ ${#BULB_IDs[@]} -eq 0 ]; then
+		debugLog "no bulbID's contained in configuration BULB_IDs"
+	else
+		for i in ${!BULB_IDs[@]} 
+		do
+			#process the output captured for each node listed, and push it into openhab.
+			BULB_ID=${BULB_IDs[$i]};
+			debugLog "=============================="
+			debugLog "bulb id:$i node: $BULB_ID"
+			debugLog "=============================="
+#TODO confirm this check
+			if [ "$BULB_ID" == "" ]
+			then
+				errorLog "config error. No ID found in BULB_ID. exiting";
+				exit
+			fi
+	
+			#retrieve data
+			brightness=`echo $infoNodes | jq --arg BULB_ID $BULB_ID '.nodes[] | select(.id == $BULB_ID).attributes.brightness.reportedValue' -r`		# 1-100 brightness
+			propertyStatus=`echo $infoNodes | jq --arg BULB_ID $BULB_ID '.nodes[] | select(.id == $BULB_ID).attributes.brightness.propertyStatus' -r` 	# "COMPLETE"
+			state=`echo $infoNodes | jq --arg BULB_ID $BULB_ID '.nodes[] | select(.id == $BULB_ID).attributes.state.reportedValue' -r` 					# "ON"
+			presence=`echo $infoNodes | jq --arg BULB_ID $BULB_ID '.nodes[] | select(.id == $BULB_ID).attributes.presence.reportedValue' -r`			# "PRESENT"
+			RSSI=`echo $infoNodes | jq --arg BULB_ID $BULB_ID '.nodes[] | select(.id == $BULB_ID).attributes.RSSI.reportedValue' -r`					# "-72 back, -52 front.."
+			scheduleEnabled=`echo $infoNodes | jq --arg BULB_ID $BULB_ID '.nodes[] | select(.id == $BULB_ID).attributes.syntheticDeviceConfiguration.targetValue.enabled' -r` # "true"
+			
+			#prepare values
+			if [ "$scheduleEnabled" == "true" ]; then
+				debugLog "schedule on";
+			else
+				debugLog "schedule off";
+			fi
+			
+			putInOH "$OPENHAB_SERVER/${bulb_Brightness[$i]}/state" "$brightness"
+			putInOH "$OPENHAB_SERVER/${bulb_State[$i]}/state" "$state"
+			#putInOH "$OPENHAB_SERVER/${bulb_RSSI[$i]}/state" "$RSSI"
+
+			#debugLog "bulb Brightness: $brightness"
+			debugLog "bulb Status: $propertyStatus"
+			#debugLog "bulb state: $state"
+			#debugLog "bulb presence: $presence" - doesn't appear to be useful
+			debugLog "bulb RSSI: $RSSI" # changes. unclear what
+			debugLog "bulb scheduleEnabled: $scheduleEnabled" # schedule versus manual mode?
+
+		done
+		debugLog "OpenHab Bulb Update Complete."	
+	fi
+}
+
 
 # get other data, like external weather. not currently used.
 function getOther {
@@ -238,18 +423,42 @@ function postToDashing {
 }
 
 ################################
-# do it!
+# main body
+
+# 1. prepare
 doCheck;
 doInit;
-#getData;
-infoNodes=`cat debug.json`
-echo $getIDs
-if [ $getIDs ]; then
+
+# 2. use stub data or get live
+if [ $usetestdata ]; then
+	debugLog "Using Test data: $testdata";
+	infoNodes=`cat $testdata`
+else
+	debugLog "Connecting for real data $usetestdata";
+#TODO validate login, test for failed pass
+	getData;
+fi
+
+# 3. Validate data
+testData;
+#TODO test with 1 thermo. 1 thermo and 1 water. none.
+
+# 4. work with data (a or b.)
+# 4a. config step
+if [[ $getIDs == "true" ]]; then
+	debugLog "Config step - getting ids.";
 	getNodeIDs;
 	exit 0;
 fi
+
+# 4b. retrieve and post the data
 getHeatingNodes;
 getWaterNodes;
+getBulbNodes;
+
+# 5. post processing
 #postToDashing;
+
+# terminate with positive message - if success, there should be no other msgs!
 echo "OK";
 exit;
