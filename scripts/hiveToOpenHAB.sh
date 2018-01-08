@@ -63,6 +63,13 @@ function testCurlResponse {
 		esac
 }
 
+# put the data in OpenHab
+function putInOH {
+	$curlCmd $openHabCurlOPTS --header "Content-Type: text/plain" --request PUT --data $2 $1
+#TODO deal with value does not exist in openhab
+	testCurlResponse $? $1 $2 $3
+}
+
 # pre checks to ensure env is ok
 function doCheck {
 	#check for jq
@@ -178,6 +185,8 @@ function getData {
 	hiveGetData;
 	hiveLogout;
 }
+
+#test that the data is good
 function testData {
 	if [ `echo $infoNodes|grep -c "NOT_AUTHORIZED"` -gt "0" ]; then
 		errorLog "Request was not authenticated."
@@ -189,7 +198,7 @@ function testData {
 	fi
 }
 
-# identify heating and water nodes
+# identify heating,water and bulb nodes
 function getNodeIDs {
 	echo $infoNodes |jq . > nodes.jsn
 	echo "Found thermostat node(s):"
@@ -264,95 +273,61 @@ function getHeatingNodes {
 		printf -v tIndoors "%.1f" "$tIndoors"
 		printf -v target "%.1f" "$target"
 		heatingModeValue=`echo $heatingMode|sed "s/HEAT/2/;s/SCHEDULE/2/;s/BOOST/1/;s/MANUAL/0/;s/OFF/0/;"`
-
 	
 		#'put' (i.e. update) to openhab server
 		putInOH "$OPENHAB_SERVER/${ohThermostatTarget[$i]}/state" 	"$target"			"TargetTemp:"
 		putInOH "$OPENHAB_SERVER/${ohThermostatTemp[$i]}/state" 	"$tIndoors"			"IndoorTemp:"
 		putInOH "$OPENHAB_SERVER/${ohHeatingStatus[$i]}/state"		$heatingStatus		"HeatingStatus:"
 		putInOH "$OPENHAB_SERVER/${ohHeatingMode[$i]}/state"		$heatingModeValue	"HeatingMode:$heatingMode: "
-		
-		#debugLog "Indoor Temp:  $tIndoors"
-		#debugLog "Target Temp: $target"
-		#debugLog "Heating Status: $heatingStatus"
-		#debugLog "Heating Mode: $heatingMode"
-		#debugLog "Updating OpenHab..."
-
-		#ohURL_Thermostat="$OPENHAB_SERVER/${ohThermostatTarget[$i]}/state"
-		#ohURL_Indoors="$OPENHAB_SERVER/${ohThermostatTemp[$i]}/state"
-		#ohURL_heatingStatus="$OPENHAB_SERVER/${ohHeatingStatus[$i]}/state"
-		#ohURL_heatingMode="$OPENHAB_SERVER/${ohHeatingMode[$i]}/state"
-				
-		#$curlCmd $openHabCurlOPTS --header "Content-Type: text/plain" --request PUT --data $target $ohURL_Thermostat
-		#testCurlResponse $? $ohURL_Thermostat $target
-		#$curlCmd $openHabCurlOPTS --header "Content-Type: text/plain" --request PUT --data $tIndoors $ohURL_Indoors
-		#testCurlResponse $? $ohURL_Indoors $tIndoors
-		#$curlCmd $openHabCurlOPTS --header "Content-Type: text/plain" --request PUT --data $heatingStatus $ohURL_heatingStatus
-		#testCurlResponse $? $ohURL_heatingStatus $heatingStatus
-		#$curlCmd $openHabCurlOPTS --header "Content-Type: text/plain" --request PUT --data $heatingModeValue $ohURL_heatingMode
-		#testCurlResponse $? $ohURL_heatingMode $heatingModeValue
 	done
 	debugLog "OpenHab Heating Update Complete."	
 }
 
 # get the water Node data
 function getWaterNodes {
-	for i in ${!RECEIVER_IDs_WATER[@]} 
-	do
-		#echo $i/${#RECEIVER_IDs_WATER[@];
-		#process the output captured for each node listed, and push it into openhab.
-		RECEIVER_ID_WATER=${RECEIVER_IDs_WATER[$i]};
-		debugLog "=============================="
-		debugLog "water id:$i node: $RECEIVER_ID_WATER"
-		debugLog "=============================="
+	if [ ${#RECEIVER_IDs_WATER[@]} -eq 0 ]; then
+		debugLog "no waterIDs contained in configuration RECEIVER_IDs_WATER: ${RECEIVER_IDs_WATER}"
+	else
+		for i in ${!RECEIVER_IDs_WATER[@]} 
+		do
+			#echo $i/${#RECEIVER_IDs_WATER[@];
+			#process the output captured for each node listed, and push it into openhab.
+			RECEIVER_ID_WATER=${RECEIVER_IDs_WATER[$i]};
+			debugLog "=============================="
+			debugLog "water id:$i node: $RECEIVER_ID_WATER"
+			debugLog "=============================="
 #TODO confirm this check
-		if [ "$RECEIVER_ID_WATER" == "" ]
-		then
-			errorLog "config error. No ID found in RECEIVER_IDs_WATER. exiting";
-			exit
-		fi
-		
-		#retrieve data
-		hotWaterStatus=`echo $infoNodes | jq --arg RECEIVER_ID_WATER $RECEIVER_ID_WATER '.nodes[] | select(.id == $RECEIVER_ID_WATER).attributes.stateHotWaterRelay.reportedValue' -r`
-		hotWaterASL=`echo $infoNodes | jq --arg RECEIVER_ID_WATER $RECEIVER_ID_WATER '.nodes[] | select(.id == $RECEIVER_ID_WATER).attributes.activeScheduleLock.reportedValue' -r`
-		hotWaterASL_Target=`echo $infoNodes | jq --arg RECEIVER_ID_WATER $RECEIVER_ID_WATER '.nodes[] | select(.id == $RECEIVER_ID_WATER).attributes.activeScheduleLock.targetValue' -r`
-		hotWaterMode=`echo $infoNodes | jq --arg RECEIVER_ID_WATER $RECEIVER_ID_WATER '.nodes[] | select(.id == $RECEIVER_ID_WATER).attributes.activeHeatCoolMode.reportedValue' -r`
-
-		#prepare values
-		if [ "$hotWaterASL_Target" != null  ]; then hotWaterASL=$hotWaterASL_Target; fi
-		if [ "$hotwaterMode" == "HEAT" ]; then
-			if [ "$hotWaterASL" == true ]; then hotwaterMode="MANUAL"; else hotwaterMode="SCHEDULE"; fi
-		fi
-		hotWaterModeValue=`echo $hotWaterMode|sed "s/HEAT/2/;s/SCHEDULE/2/;s/BOOST/1/;s/OFF/0/;"`
-
-		#'put' (i.e. update) to openhab server
-		putInOH $OPENHAB_SERVER/${ohHotWaterStatus[$i]}/state "$hotWaterStatus"
-		putInOH "$OPENHAB_SERVER/${ohHotwaterMode[$i]}/state" $hotWaterModeValue
-		
-		#debugLog "Hot Water Status: $hotWaterStatus"
-		#debugLog "Hot Water Mode: $hotWaterMode"
-		#ohURL_hotWaterStatus="$OPENHAB_SERVER/${ohHotWaterStatus[$i]}/state"
-		#ohURL_hotwaterMode="$OPENHAB_SERVER/${ohHotwaterMode[$i]}/state"
-		
-		#$curlCmd $openHabCurlOPTS --header "Content-Type: text/plain" --request PUT --data $hotWaterStatus $ohURL_hotWaterStatus
-		#testCurlResponse $? $ohURL_hotWaterStatus $hotWaterStatus
-		#$curlCmd $openHabCurlOPTS --header "Content-Type: text/plain" --request PUT --data $hotWaterModeValue $ohURL_hotwaterMode
-		#testCurlResponse $? $ohURL_hotwaterMode $hotWaterModeValue
-	done
-	debugLog "OpenHab Water Update Complete."	
-}
-
-# put the data in OpenHab
-function putInOH {
-	$curlCmd $openHabCurlOPTS --header "Content-Type: text/plain" --request PUT --data $2 $1
-# deal with value does not exist.
-	testCurlResponse $? $1 $2 $3
+			if [ "$RECEIVER_ID_WATER" == "" ]
+			then
+				errorLog "config error. No ID found in RECEIVER_IDs_WATER. exiting";
+				exit
+			fi
+			
+			#retrieve data
+			hotWaterStatus=`echo $infoNodes | jq --arg RECEIVER_ID_WATER $RECEIVER_ID_WATER '.nodes[] | select(.id == $RECEIVER_ID_WATER).attributes.stateHotWaterRelay.reportedValue' -r`
+			hotWaterASL=`echo $infoNodes | jq --arg RECEIVER_ID_WATER $RECEIVER_ID_WATER '.nodes[] | select(.id == $RECEIVER_ID_WATER).attributes.activeScheduleLock.reportedValue' -r`
+			hotWaterASL_Target=`echo $infoNodes | jq --arg RECEIVER_ID_WATER $RECEIVER_ID_WATER '.nodes[] | select(.id == $RECEIVER_ID_WATER).attributes.activeScheduleLock.targetValue' -r`
+			hotWaterMode=`echo $infoNodes | jq --arg RECEIVER_ID_WATER $RECEIVER_ID_WATER '.nodes[] | select(.id == $RECEIVER_ID_WATER).attributes.activeHeatCoolMode.reportedValue' -r`
+	
+			#prepare values
+			if [ "$hotWaterASL_Target" != null  ]; then hotWaterASL=$hotWaterASL_Target; fi
+			if [ "$hotwaterMode" == "HEAT" ]; then
+				if [ "$hotWaterASL" == true ]; then hotwaterMode="MANUAL"; else hotwaterMode="SCHEDULE"; fi
+			fi
+			hotWaterModeValue=`echo $hotWaterMode|sed "s/HEAT/2/;s/SCHEDULE/2/;s/BOOST/1/;s/OFF/0/;"`
+	
+			#'put' (i.e. update) to openhab server
+			putInOH $OPENHAB_SERVER/${ohHotWaterStatus[$i]}/state "$hotWaterStatus"
+			putInOH "$OPENHAB_SERVER/${ohHotwaterMode[$i]}/state" $hotWaterModeValue		
+		done
+		debugLog "OpenHab Water Update Complete."
+	fi;	
 }
 
 # get the Bulb Node data
 function getBulbNodes {
 	if [ ${#BULB_IDs[@]} -eq 0 ]; then
-		debugLog "no bulbID's contained in configuration BULB_IDs"
+		debugLog "no bulbID's contained in configuration BULB_IDs: ${BULB_IDs}"
 	else
 		for i in ${!BULB_IDs[@]} 
 		do
@@ -377,23 +352,18 @@ function getBulbNodes {
 			scheduleEnabled=`echo $infoNodes | jq --arg BULB_ID $BULB_ID '.nodes[] | select(.id == $BULB_ID).attributes.syntheticDeviceConfiguration.targetValue.enabled' -r` # "true"
 			
 			#prepare values
-			if [ "$scheduleEnabled" == "true" ]; then
-				debugLog "schedule on";
+			modeValue=`echo $scheduleEnabled|sed "s/true/2/;s/null/0/;"`;
+			#brightness is the last set value - if off, it does not go to 0.
+			if [ "$state" == "OFF" ]; then
+				actualBrightness=0;
 			else
-				debugLog "schedule off";
+				actualBrightness=$brightness
 			fi
-			
-			putInOH "$OPENHAB_SERVER/${bulb_Brightness[$i]}/state" "$brightness"
-			putInOH "$OPENHAB_SERVER/${bulb_State[$i]}/state" "$state"
-			#putInOH "$OPENHAB_SERVER/${bulb_RSSI[$i]}/state" "$RSSI"
 
-			#debugLog "bulb Brightness: $brightness"
-			debugLog "bulb Status: $propertyStatus"
-			#debugLog "bulb state: $state"
-			#debugLog "bulb presence: $presence" - doesn't appear to be useful
-			debugLog "bulb RSSI: $RSSI" # changes. unclear what
-			debugLog "bulb scheduleEnabled: $scheduleEnabled" # schedule versus manual mode?
-
+			#'put' (i.e. update) to openhab server
+			putInOH "$OPENHAB_SERVER/${bulb_Brightness[$i]}/state" "$actualBrightness" "BulbBrightness:";
+			putInOH "$OPENHAB_SERVER/${bulb_State[$i]}/state" "$state" "BulbState:";
+			putInOH "$OPENHAB_SERVER/${bulb_Mode[$i]}/state" "$modeValue" "BulbMode:$mode:";
 		done
 		debugLog "OpenHab Bulb Update Complete."	
 	fi

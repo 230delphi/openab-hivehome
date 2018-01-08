@@ -1,4 +1,5 @@
-sitemap hive label="Hive menu" 
+//Sample site map for hive system
+sitemap hive label="Hive menu"
 {
 	Frame label="Upstairs Heating" 
 		{
@@ -22,9 +23,9 @@ sitemap hive label="Hive menu"
 	Frame label="Landing Lights"
 		{
 			Slider	item=landingFrontLight 
-			Switch 	item=landingFrontLightHState 			mappings=[2="schedule",0="Off"]
+			Switch 	item=landingFrontLightHMode 		mappings=[2="schedule",0="Off"]
 			Slider 	item=landingBackLight
-			Switch 	item=landingBackLightHState 			mappings=[2="schedule",0="Off"]
+			Switch 	item=landingBackLightHMode 			mappings=[2="schedule",0="Off"]
 		}
 
 	Frame label="Control"

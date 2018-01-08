@@ -4,8 +4,10 @@ PW="hive_password"
 HIVE_URL="https://api-prod.bgchprod.info:443/omnia"
 
 # multiple zones supported - space seperated lists within (zone1 zone2)
-RECEIVER_IDs_HEATING=(XXXXXXX-XXXX-XXXX-XXXXXX-XXXXXXXXX)  #Check the node name - should be "Your Receiver"
-RECEIVER_IDs_WATER=(XXXXXXX-XXXX-XXXX-XXXXXX-XXXXXXXXX)    #Another "Your Receiver" node
+# leave blank if none.
+RECEIVER_IDs_HEATING=(XXXXXXX-XXXX-XXXX-XXXXXX-XXXXXXXXX)  	# Check the node name - should be "Your Receiver"
+RECEIVER_IDs_WATER=(XXXXXXX-XXXX-XXXX-XXXXXX-XXXXXXXXX)    	# Another "Your Receiver" node
+BULB_IDs=(XXXXXXX-XXXX-XXXX-XXXXXX-XXXXXXXXX) 				# Bulbs on the hive system
 
 # OpenHAB configuration
 OPENHAB_SERVER="http://192.168.x.x:8080/rest/items"
@@ -19,6 +21,11 @@ ohHeatingMode=(upstairsMode downstairsMode)
 # hot water - typically only one zone per system, but multiple are supported as above
 ohHotWaterStatus=(hotWaterStatus)
 ohHotwaterMode=(hotWaterMode)
+
+# Bulbs
+bulb_Brightness=(landingFrontLight landingBackLight)
+bulb_State=(landingFrontLightHState landingBackLightHState)
+bulb_Mode=(landingFrontLightHMode landingBackLightHMode)
 
 #script settings: debug to log, verbose - output to screen (will fail on openhab)
 debug=false

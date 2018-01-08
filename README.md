@@ -1,8 +1,9 @@
-# openab-hivehome
+## openab-hivehome
 Integration of Hive Heating controls with openHAB
 
-## Original readme: https://community.openhab.org/t/hive-thermostat-british-gas-tutorial/36371
-## credit user smar: https://community.openhab.org/u/smar/summary
+Based on original work by smar, expanded with permission
+Original readme: https://community.openhab.org/t/hive-thermostat-british-gas-tutorial/36371
+credit user smar: https://community.openhab.org/u/smar/summary
 
 Overview
 --------

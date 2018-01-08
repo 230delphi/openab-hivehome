@@ -1,3 +1,4 @@
+//Sample items for hive system
 Group 	GDevices
 Group 	gFirstFloor
 Group	gGroundFloor
@@ -22,9 +23,11 @@ Number 	hotWaterMode 			"Hot Water Mode" 					<status>		(gHeating)
 
 // bulbs
 Dimmer landingFrontLight 		"Landing Front light" 				<slider>		(GDevices,gLanding)
-Number landingFrontLightHState 	"Landing Front light - hive state" 	<status>		(GDevices,gLanding)
+Switch landingFrontLightHState 	"Landing Front light - hive state" 	<status>		(GDevices,gLanding)
+Number landingFrontLightHMode 	"Landing Front light - hive mode" 	<status>		(GDevices,gLanding)
 Dimmer landingBackLight 		"Landing Back light" 				<slider>		(GDevices,gLanding)
-Number landingBackLightHState 	"Landing Back light - hive state" 	<status>		(GDevices,gLanding)
+Switch landingBackLightHState 	"Landing Back light - hive state" 	<status>		(GDevices,gLanding)
+Number landingBackLightHMode 	"Landing Back light - hive mode" 	<status>		(GDevices,gLanding)
 
 // Control running status of update script.
 String 	hiveHomeUpdateRunning	"Hive Update running ... [%s]" 		<status>		(gHeating)
