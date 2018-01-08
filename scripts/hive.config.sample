@@ -1,0 +1,42 @@
+# hive settings
+USERID="hive_username"
+PW="hive_password"
+HIVE_URL="https://api-prod.bgchprod.info:443/omnia"
+
+# multiple zones supported - space seperated lists within (zone1 zone2)
+# leave blank if none.
+RECEIVER_IDs_HEATING=(XXXXXXX-XXXX-XXXX-XXXXXX-XXXXXXXXX)  	# Check the node name - should be "Your Receiver"
+RECEIVER_IDs_WATER=(XXXXXXX-XXXX-XXXX-XXXXXX-XXXXXXXXX)    	# Another "Your Receiver" node
+BULB_IDs=(XXXXXXX-XXXX-XXXX-XXXXXX-XXXXXXXXX) 				# Bulbs on the hive system
+
+# OpenHAB configuration
+OPENHAB_SERVER="http://192.168.x.x:8080/rest/items"
+
+# set openhab variables; (zone1 zone2) zone2 is only used if set for heating or water ID above
+ohThermostatTarget=(upstairsTargetTemp downstairsTargetTemp)
+ohThermostatTemp=(upstairsTemp downstairsTemp)
+ohHeatingStatus=(upstairsStatus downstairsStatus)
+ohHeatingMode=(upstairsMode downstairsMode)
+
+# hot water - typically only one zone per system, but multiple are supported as above
+ohHotWaterStatus=(hotWaterStatus)
+ohHotwaterMode=(hotWaterMode)
+
+# Bulbs
+bulb_Brightness=(landingFrontLight landingBackLight)
+bulb_State=(landingFrontLightHState landingBackLightHState)
+bulb_Mode=(landingFrontLightHMode landingBackLightHMode)
+
+#script settings: debug to log, verbose - output to screen (will fail on openhab)
+debug=false
+verbose=false
+debugFilename=hive-debug.log
+
+#Weather is currently disabled in script TODO
+WEATHER_URL="https://weather-prod.bgchprod.info/weather?postcode=XXXXX"
+
+#MQTT is not tested/updated for above config TODO.
+MQTT_SERVER="172.16.X.X"
+MQTT_USER="openhab"
+MQTT_PW="XXXX"
+MQTT_THREAD="hive"

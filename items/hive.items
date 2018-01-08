@@ -1,0 +1,35 @@
+//Sample items for hive system
+Group 	GDevices
+Group 	gFirstFloor
+Group	gGroundFloor
+Group 	gHeating (GDevices)
+Group 	gLanding (gFirstFloor)
+
+// zone 1 upstairs
+Number 	upstairsTargetTemp		"Upstairs Target Temperature" 		<temperature>	(gHeating,gFirstFloor)
+Number 	upstairsTemp 			"Upstairs current temperature" 		<temperature>	(gHeating,gFirstFloor)
+Switch	upstairsStatus 			"Upstairs Status" 					<switch>		(gHeating,gFirstFloor)
+Number 	upstairsMode 			"Upstairs Mode" 					<status>		(gHeating,gFirstFloor)
+
+// zone 2 downstairs
+Number 	downstairsTargetTemp 	"Downstairs Target Temperature" 	<temperature>	(gHeating,gGroundFloor)
+Number 	downstairsTemp 			"Downstairs current Temperature" 	<temperature>	(gHeating,gGroundFloor)
+Switch 	downstairsStatus 		"Downstairs Status" 				<switch>		(gHeating,gGroundFloor)
+Number 	downstairsMode 			"Downstairs Mode" 					<status>		(gHeating,gGroundFloor)
+
+// zone1 - hot water - typically only one zone per system
+Switch 	hotWaterStatus 			"Hot Water Status" 					<switch>		(gHeating)
+Number 	hotWaterMode 			"Hot Water Mode" 					<status>		(gHeating)
+
+// bulbs
+Dimmer landingFrontLight 		"Landing Front light" 				<slider>		(GDevices,gLanding)
+Switch landingFrontLightHState 	"Landing Front light - hive state" 	<status>		(GDevices,gLanding)
+Number landingFrontLightHMode 	"Landing Front light - hive mode" 	<status>		(GDevices,gLanding)
+Dimmer landingBackLight 		"Landing Back light" 				<slider>		(GDevices,gLanding)
+Switch landingBackLightHState 	"Landing Back light - hive state" 	<status>		(GDevices,gLanding)
+Number landingBackLightHMode 	"Landing Back light - hive mode" 	<status>		(GDevices,gLanding)
+
+// Control running status of update script.
+String 	hiveHomeUpdateRunning	"Hive Update running ... [%s]" 		<status>		(gHeating)
+Switch 	hiveHomeManualRun		"Start manually"             		<switch>		(gHeating)
+DateTime hiveHomeLastUpdate     "Last run [%1$td.%1$tm.%1$tY, %1$tH:%1$tM]" <time>	(gHeating)

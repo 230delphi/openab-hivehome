@@ -1,0 +1,49 @@
+//hiveHome rules, based on work from speedtest rules.
+val String filename = "hiveHome.rules"
+
+rule "hiveHome init"
+when
+    System started
+then
+    createTimer(now.plusSeconds(240)) [|
+        if (hiveHomeManualRun.state == NULL) hiveHomeManualRun.postUpdate(OFF)
+        if (hiveHomeUpdateRunning.state == NULL) hiveHomeUpdateRunning.postUpdate("-")
+    ]
+end
+
+rule "hiveHome"
+when
+    // every 15 minutes, offset to avoid hour clash. 
+    Time cron "0 7-59/15 * * * ?" or
+    Item hiveHomeManualRun received command ON
+then
+    logInfo(filename, "--> hiveHome executed...")
+    hiveHomeUpdateRunning.postUpdate("started.. " + new DateTimeType())
+
+    // update timestamp for last execution
+    hiveHomeLastUpdate.postUpdate(new DateTimeType())
+
+    // execute the script, you may have to change the path depending on your system
+    var String hiveHomeCliOutput = executeCommandLine("/etc/openhab2/scripts/hiveToOpenHAB.sh", 60*1000)
+
+    logDebug(filename, "--> hiveHome output:\n" + hiveHomeCliOutput + "\n\n")
+    hiveHomeUpdateRunning.postUpdate("updated:" + new DateTimeType())
+
+    // crude error check based on script output
+    if (hiveHomeCliOutput.startsWith("OK")) {
+        logInfo(filename, "--> hiveHome finished: success")
+    } else {
+	// optional - set values to null so its clear failure.
+        upstairsTargetTemp.postUpdate(0)
+        upstairsTemp.postUpdate(0)
+        upstairsStatus.postUpdate("OFF")
+        downstairsTargetTemp.postUpdate(0)
+        downstairsTemp.postUpdate(0)
+        downstairsStatus.postUpdate("OFF")
+        hotWaterStatus.postUpdate("OFF")
+	// set as failed and log error.
+        hiveHomeUpdateRunning.postUpdate("Error executing script. " + new DateTimeType())
+        logError(filename, "--> hiveHome failed. Output:\n" + hiveHomeCliOutput + "\n\n")
+    }
+    hiveHomeManualRun.postUpdate(OFF)
+end
